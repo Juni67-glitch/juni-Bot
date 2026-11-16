@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,117 +16,146 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Context
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            JuniBotScreen()
+            RepliesScreen(this)
         }
     }
 }
 
 @Composable
-fun JuniBotScreen() {
+fun RepliesScreen(context: Context) {
     val purple = Color(0xFF9C27B0)
     val dark = Color(0xFF121212)
 
-    var botEnabled by remember { mutableStateOf(false) }
+    val preferences = remember {
+        context.getSharedPreferences("JuniBot", Context.MODE_PRIVATE)
+    }
+
+    val replies = remember {
+        mutableStateListOf<String>().apply {
+            addAll(preferences.getStringSet("replies", emptySet()) ?: emptySet())
+        }
+    }
+
+    var replyText by remember { mutableStateOf("") }
+    var editingIndex by remember { mutableStateOf(-1) }
+
+    fun saveReplies() {
+        preferences.edit()
+            .putStringSet("replies", replies.toSet())
+            .apply()
+    }
 
     MaterialTheme {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .background(dark)
-                .padding(20.dp)
+                .padding(18.dp)
         ) {
             Text(
-                text = "JUNI'S BOT",
+                "JUNI'S BOT",
                 color = purple,
-                fontSize = 30.sp
+                fontSize = 28.sp
             )
 
             Text(
-                text = "Messenger Automation",
+                "Manage Your Replies",
                 color = Color.White,
-                fontSize = 14.sp
+                fontSize = 19.sp
             )
 
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(Modifier.height(20.dp))
 
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFF242424)
-                ),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text(
-                        text = "Bot Status",
-                        color = Color.White,
-                        fontSize = 20.sp
-                    )
+            OutlinedTextField(
+                value = replyText,
+                onValueChange = { replyText = it },
+                label = { Text("Enter your reply") },
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = purple,
+                    focusedLabelColor = purple
+                )
+            )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+            Spacer(Modifier.height(12.dp))
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (botEnabled) "ON" else "OFF",
-                            color = if (botEnabled) Color.Green else Color.Red
-                        )
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        Switch(
-                            checked = botEnabled,
-                            onCheckedChange = { botEnabled = it }
-                        )
+            Button(
+                onClick = {
+                    if (replyText.isNotBlank()) {
+                        if (editingIndex >= 0) {
+                            replies[editingIndex] = replyText.trim()
+                            editingIndex = -1
+                        } else {
+                            replies.add(replyText.trim())
+                        }
+                        saveReplies()
+                        replyText = ""
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Button(
-                onClick = {},
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = purple
                 )
             ) {
-                Text("Manage Chats")
+                Text(if (editingIndex >= 0) "Update Reply" else "Add Reply")
             }
 
-            Button(
-                onClick = {},
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = purple
-                )
-            ) {
-                Text("Manage Replies")
-            }
-
-            Button(
-                onClick = {},
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = purple
-                )
-            ) {
-                Text("Import / Export CSV")
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(Modifier.height(20.dp))
 
             Text(
-                text = "Activity History",
+                "Saved Replies (${replies.size})",
                 color = Color.White,
                 fontSize = 20.sp
             )
+
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                itemsIndexed(replies) { index, reply ->
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFF292929)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(reply, color = Color.White)
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
+                            ) {
+                                TextButton(onClick = {
+                                    replyText = reply
+                                    editingIndex = index
+                                }) {
+                                    Text("Edit", color = purple)
+                                }
+
+                                TextButton(onClick = {
+                                    replies.removeAt(index)
+                                    saveReplies()
+                                    if (editingIndex == index) {
+                                        editingIndex = -1
+                                        replyText = ""
+                                    }
+                                }) {
+                                    Text("Delete", color = Color.Red)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
-
